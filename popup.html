@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transcript Downloader</title>
+  <style>
+    /* ---- Reset & Base ---------------------------------------- */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 300px;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 13px;
+      background: #f8f9fa;
+      color: #202124;
+    }
+
+    /* ---- Header ---------------------------------------------- */
+    .header {
+      background: linear-gradient(135deg, #1a73e8, #0d47a1);
+      color: white;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .header-icon { font-size: 22px; }
+    .header h1  { font-size: 14px; font-weight: 600; }
+    .header p   { font-size: 11px; opacity: 0.8; margin-top: 2px; }
+
+    /* ---- Body ------------------------------------------------ */
+    .body { padding: 14px; }
+
+    /* ---- Info card (used inside views) ----------------------- */
+    .card {
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    /* ---- Status dot + label --------------------------------- */
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      line-height: 1.4;
+    }
+    .dot {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .dot.green  { background: #34a853; }
+    .dot.yellow { background: #fbbc04; }
+    .dot.red    { background: #ea4335; }
+
+    /* ---- Instruction list ----------------------------------- */
+    .steps {
+      font-size: 12px;
+      line-height: 1.8;
+      color: #3c4043;
+    }
+    .steps .step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: #1a73e8;
+      color: white;
+      font-size: 10px;
+      font-weight: 700;
+      margin-right: 6px;
+      flex-shrink: 0;
+    }
+    .steps .step {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 8px;
+      gap: 8px;
+    }
+    .steps .step-text {
+      flex: 1;
+      padding-top: 1px; /* optical align with circle */
+      line-height: 1.5;
+    }
+
+    /* ---- Buttons -------------------------------------------- */
+    .btn {
+      width: 100%;
+      padding: 10px 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      margin-bottom: 8px;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    .btn:last-child { margin-bottom: 0; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .btn-primary  { background: #1a73e8; color: white; }
+    .btn-primary:hover:not(:disabled) { background: #1558c0; }
+
+    .btn-success  { background: #34a853; color: white; }
+    .btn-success:hover:not(:disabled) { background: #2a8a44; }
+
+    .btn-outline {
+      background: white;
+      color: #1a73e8;
+      border: 1.5px solid #1a73e8;
+    }
+    .btn-outline:hover:not(:disabled) { background: #e8f0fe; }
+
+    .btn-ghost {
+      background: white;
+      color: #5f6368;
+      border: 1.5px solid #dadce0;
+      font-weight: 500;
+    }
+    .btn-ghost:hover:not(:disabled) { background: #f1f3f4; }
+
+    /* ---- Divider -------------------------------------------- */
+    .divider {
+      height: 1px;
+      background: #e0e0e0;
+      margin: 12px 0;
+    }
+
+    /* ---- Message bar ---------------------------------------- */
+    .message {
+      font-size: 12px;
+      padding: 8px 11px;
+      border-radius: 7px;
+      margin-bottom: 10px;
+      display: none;
+      line-height: 1.4;
+    }
+    .message.show    { display: block; }
+    .message.info    { background: #e8f0fe; color: #1a73e8; border: 1px solid #c5d8f6; }
+    .message.success { background: #e6f4ea; color: #137333; border: 1px solid #b7dfbf; }
+    .message.error   { background: #fce8e6; color: #c5221f; border: 1px solid #f5c6c3; }
+
+    /* ---- Spinner -------------------------------------------- */
+    .spinner {
+      display: inline-block;
+      width: 13px; height: 13px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.65s linear infinite;
+      flex-shrink: 0;
+    }
+    /* Dark spinner for outline/ghost buttons */
+    .btn-outline .spinner,
+    .btn-ghost   .spinner {
+      border-color: rgba(0,0,0,0.15);
+      border-top-color: #1a73e8;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ---- Centered notice (not-drive, not-video) ------------- */
+    .notice {
+      text-align: center;
+      padding: 18px 8px;
+      color: #5f6368;
+      line-height: 1.6;
+    }
+    .notice .notice-icon { font-size: 32px; margin-bottom: 8px; }
+    .notice strong { color: #202124; display: block; margin-bottom: 4px; }
+
+    /* ---- Captured info label -------------------------------- */
+    .captured-label {
+      font-size: 11px;
+      color: #137333;
+      background: #e6f4ea;
+      border: 1px solid #b7dfbf;
+      border-radius: 6px;
+      padding: 5px 9px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ======================================================
+       HEADER
+  ======================================================= -->
+  <div class="header">
+    <div class="header-icon">📝</div>
+    <div>
+      <h1>Transcript Downloader</h1>
+      <p>Google Drive · Video Transcripts</p>
+    </div>
+  </div>
+
+  <div class="body">
+
+    <!-- Shared message bar (shown above whichever view is active) -->
+    <div id="msgBox" class="message"></div>
+
+    <!-- ====================================================
+         VIEW: Not on Google Drive
+    ===================================================== -->
+    <div id="view_notDrive" style="display:none">
+      <div class="notice">
+        <div class="notice-icon">🌐</div>
+        <strong>Not on Google Drive</strong>
+        Navigate to a video in Google Drive, then click this extension.
+      </div>
+    </div>
+
+    <!-- ====================================================
+         VIEW: On Drive but no video detected
+    ===================================================== -->
+    <div id="view_notVideo" style="display:none">
+      <div class="notice">
+        <div class="notice-icon">🎬</div>
+        <strong>No video detected</strong>
+        Open a video file in Google Drive first, then click this extension.
+      </div>
+      <button class="btn btn-ghost btn-refresh">↻ Refresh</button>
+    </div>
+
+    <!-- ====================================================
+         VIEW: Video found but transcript not opened yet
+    ===================================================== -->
+    <div id="view_notReady" style="display:none">
+      <div class="card">
+        <div class="status-row" style="margin-bottom:10px">
+          <div class="dot green"></div>
+          <span>Video detected</span>
+        </div>
+        <div class="status-row">
+          <div class="dot red"></div>
+          <span>Transcript not opened yet</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="steps">
+          <div class="step">
+            <span class="step-num">1</span>
+            <span class="step-text">If the transcript panel is already open, <b>close it</b> first</span>
+          </div>
+          <div class="step">
+            <span class="step-num">2</span>
+            <span class="step-text">Click the <b>Settings ⚙</b> icon in the video player</span>
+          </div>
+          <div class="step">
+            <span class="step-num">3</span>
+            <span class="step-text">Select <b>Transcript</b> — wait for it to load</span>
+          </div>
+          <div class="step">
+            <span class="step-num">4</span>
+            <span class="step-text">Click <b>Refresh Status</b> below</span>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary btn-refresh">↻ Refresh Status</button>
+    </div>
+
+    <!-- ====================================================
+         VIEW: Ready — transcript URL captured, show actions
+    ===================================================== -->
+    <div id="view_ready" style="display:none">
+
+      <!-- Confirmation that we have the transcript source -->
+      <div class="captured-label">
+        <span>✓</span>
+        <span id="capturedInfo">Transcript source captured</span>
+      </div>
+
+      <!-- Download as .txt file (includes timestamps) -->
+      <button id="btnDownload" class="btn btn-success">
+        ⬇ Download as .txt
+      </button>
+
+      <!-- Copy to clipboard — with timestamps -->
+      <button id="btnCopyTimestamps" class="btn btn-primary">
+        📋 Copy with Timestamps
+      </button>
+
+      <!-- Copy to clipboard — plain prose, no timestamps -->
+      <button id="btnCopyPlain" class="btn btn-outline">
+        📄 Copy Plain Text
+      </button>
+
+      <div class="divider"></div>
+
+      <!-- Refresh: re-check status and clear extract cache -->
+      <button class="btn btn-ghost btn-refresh">
+        ↻ Refresh
+      </button>
+
+    </div>
+
+    <!-- ====================================================
+         VIEW: Error communicating with content script
+    ===================================================== -->
+    <div id="view_error" style="display:none">
+      <div class="notice">
+        <div class="notice-icon">⚠️</div>
+        <strong>Could not connect to the page</strong>
+        Try reloading the Google Drive tab, then click Refresh.
+      </div>
+      <button class="btn btn-ghost btn-refresh">↻ Refresh</button>
+    </div>
+
+  </div><!-- /.body -->
+
+  <script src="popup.js"></script>
+</body>
+</html>
