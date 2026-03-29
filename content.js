@@ -14,12 +14,8 @@ const TIMEDTEXT_URL_PATTERN = '/timedtext';
 // used as a reliable fallback when the network URL wasn't captured
 const SEGMENT_ARIA_PREFIX = 'Segment starting at';
 
-// CustomEvent name used to tunnel the URL from the injected
-// page-context script back into this isolated content script
+// CustomEvent name — must match the one fired by interceptor.js
 const TIMEDTEXT_EVENT = '__gd_transcript_timedtext__';
-
-// Flag set on window (in page context) to avoid double-injection
-const INTERCEPTOR_FLAG = '__gdTranscriptInterceptorInstalled';
 
 // Video file extensions used to detect a video page
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.avi', '.mkv', '.webm'];
@@ -33,65 +29,9 @@ const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.avi', '.mkv', '.webm'];
 const capturedUrls = new Set();
 
 
-// ============================================================
-// FETCH INTERCEPTOR INJECTION
-//
-// Content scripts run in an "isolated world" — they share the
-// DOM but NOT window.fetch with the page. To intercept the
-// timedtext fetch we inject a tiny <script> element that runs
-// in the PAGE's JS context, overrides fetch/XHR, and fires a
-// CustomEvent on document whenever a matching URL is seen.
-// The content script then listens for that event.
-// ============================================================
-
-function injectFetchInterceptor() {
-  const script = document.createElement('script');
-  script.textContent = `
-    (function () {
-      // Guard: only install once per page lifetime
-      if (window.${INTERCEPTOR_FLAG}) return;
-      window.${INTERCEPTOR_FLAG} = true;
-
-      function notifyContentScript(url) {
-        document.dispatchEvent(
-          new CustomEvent('${TIMEDTEXT_EVENT}', { detail: url })
-        );
-      }
-
-      // --- Override window.fetch ---
-      const _origFetch = window.fetch;
-      window.fetch = function (...args) {
-        const url = typeof args[0] === 'string'
-          ? args[0]
-          : (args[0]?.url || '');
-        if (url.includes('${TIMEDTEXT_URL_PATTERN}')) {
-          notifyContentScript(url);
-        }
-        return _origFetch.apply(this, args);
-      };
-
-      // --- Override XMLHttpRequest as a fallback ---
-      const _origOpen = XMLHttpRequest.prototype.open;
-      XMLHttpRequest.prototype.open = function (method, url, ...rest) {
-        if (typeof url === 'string' && url.includes('${TIMEDTEXT_URL_PATTERN}')) {
-          notifyContentScript(url);
-        }
-        return _origOpen.call(this, method, url, ...rest);
-      };
-    })();
-  `;
-
-  // Append to <head> (or <html> if head isn't ready yet), then
-  // immediately remove — the script has already executed by then.
-  (document.head || document.documentElement).appendChild(script);
-  script.remove();
-}
-
-// Run injector as early as possible so no requests are missed
-injectFetchInterceptor();
-
-
 // ---- Listen for captured URLs from page context ------------
+// interceptor.js (world: "MAIN") overrides fetch/XHR and fires
+// this CustomEvent whenever a timedtext URL is detected.
 
 document.addEventListener(TIMEDTEXT_EVENT, (e) => {
   if (e.detail) {
@@ -143,7 +83,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 
-// ============================================================
 // VIDEO PAGE DETECTION
 //
 // Drive videos often open as an overlay on a folder page, so:

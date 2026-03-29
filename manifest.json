@@ -21,6 +21,12 @@
   "content_scripts": [
     {
       "matches": ["https://drive.google.com/*"],
+      "js": ["interceptor.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://drive.google.com/*"],
       "js": ["content.js"],
       "run_at": "document_idle"
     }
